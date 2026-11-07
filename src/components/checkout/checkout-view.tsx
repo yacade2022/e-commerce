@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { CircleCheckIcon, InfoIcon, ShoppingBagIcon } from "lucide-react";
+import { placeOrder, type PlacedOrder as ServerOrder } from "@/app/checkout/actions";
 import { OrderSummary } from "@/components/cart/order-summary";
 import { EmptyState } from "@/components/common/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { site } from "@/data/site";
 import { cartActions, useCartItems, useHydrated } from "@/lib/cart-store";
 import { formatPrice } from "@/lib/format";
-import { calculateTotals, shippingCost, type CartTotals, type ShippingMethod } from "@/lib/pricing";
+import { calculateTotals, shippingCost, type ShippingMethod } from "@/lib/pricing";
 import type { CartItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -46,18 +47,8 @@ function validate(v: FormValues): FormErrors {
   return errors;
 }
 
-/** Random reference shown on the confirmation screen; not a real order id. */
-function createDemoOrderNumber(): string {
-  return `DEMO-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-}
-
-interface PlacedOrder {
-  number: string;
-  email: string;
-  items: CartItem[];
-  totals: CartTotals;
-  method: ShippingMethod;
-}
+/** The server-priced order, plus the email that stays in the browser. */
+type PlacedOrder = ServerOrder & { email: string };
 
 export function CheckoutView() {
   const hydrated = useHydrated();
@@ -88,7 +79,10 @@ function CheckoutForm({ items, onPlaced }: { items: CartItem[]; onPlaced: (o: Pl
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState(false);
   const [method, setMethod] = useState<ShippingMethod>("standard");
+  const [orderError, setOrderError] = useState<{ message: string; problemKeys: string[] } | null>(null);
+  const [pending, startTransition] = useTransition();
   const refs = useRef<Partial<Record<FieldName, HTMLInputElement | null>>>({});
+  // Display-only estimate from the browser cart; the server reprices on submit.
   const totals = calculateTotals(items, method);
 
   const set = (name: FieldName) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,16 +102,25 @@ function CheckoutForm({ items, onPlaced }: { items: CartItem[]; onPlaced: (o: Pl
       refs.current[first]?.focus();
       return;
     }
-    const order: PlacedOrder = {
-      number: createDemoOrderNumber(),
-      email: values.email.trim(),
-      items,
-      totals,
-      method,
-    };
-    cartActions.clear();
-    onPlaced(order);
-    window.scrollTo({ top: 0 });
+    if (pending) return;
+    setOrderError(null);
+    // Send identifiers and quantities only; prices come from the server's catalog.
+    const lines = items.map(({ productId, options, quantity }) => ({ productId, options, quantity }));
+    const email = values.email.trim();
+    startTransition(async () => {
+      try {
+        const result = await placeOrder(lines, method);
+        if (!result.ok) {
+          setOrderError({ message: result.error, problemKeys: result.problemKeys });
+          return;
+        }
+        cartActions.clear();
+        onPlaced({ ...result.order, email });
+        window.scrollTo({ top: 0 });
+      } catch {
+        setOrderError({ message: "We couldn’t reach the store. Check your connection and try again.", problemKeys: [] });
+      }
+    });
   }
 
   const field = (
@@ -219,11 +222,24 @@ function CheckoutForm({ items, onPlaced }: { items: CartItem[]; onPlaced: (o: Pl
             </p>
           </Step>
 
+          {orderError && (
+            <div role="alert" className="rounded-lg border border-sale/40 bg-sale/5 p-3 text-sm text-sale">
+              <p>{orderError.message}</p>
+              {orderError.problemKeys.length > 0 && (
+                <Link href="/cart" className="mt-1 inline-block font-medium underline">
+                  Review your cart
+                </Link>
+              )}
+            </div>
+          )}
+
           <Button
             type="submit"
+            disabled={pending}
+            aria-busy={pending || undefined}
             className="h-12 w-full bg-sun text-base font-semibold text-pine hover:bg-sun-strong sm:w-auto sm:px-8"
           >
-            Place demo order
+            {pending ? "Placing order…" : "Place demo order"}
           </Button>
         </form>
 

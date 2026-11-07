@@ -36,6 +36,7 @@ const allProducts: Product[] = rawProducts
   .filter((p): p is Product => p !== null);
 
 const productBySlug = new Map(allProducts.map((p) => [p.slug, p]));
+const productById = new Map(allProducts.map((p) => [p.id, p]));
 
 /* ---------- Taxonomy ---------- */
 
@@ -63,6 +64,10 @@ export async function getAllProductSlugs(): Promise<string[]> {
 
 export async function getProductBySlug(slug: string): Promise<Product | undefined> {
   return productBySlug.get(slug);
+}
+
+export async function getProductById(id: string): Promise<Product | undefined> {
+  return productById.get(id);
 }
 
 export async function getRelatedProducts(product: Product, limit = 6): Promise<Product[]> {

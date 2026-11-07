@@ -2,23 +2,24 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { site } from "@/data/site";
+import { cartItemKey } from "@/lib/cart-key";
 import { calculateTotals } from "@/lib/pricing";
-import type { CartItem, SelectedOptions } from "@/lib/types";
+import type { CartItem } from "@/lib/types";
+
+export { cartItemKey };
 
 const STORAGE_KEY = "stockroom.cart.v1";
 const EMPTY: CartItem[] = [];
+const IMAGE_ORIGIN = "https://cdn.dummyjson.com/";
 
 let items: CartItem[] | null = null;
 const listeners = new Set<() => void>();
 
-export function cartItemKey(productId: string, options: SelectedOptions): string {
-  const opts = Object.keys(options)
-    .sort()
-    .map((k) => `${k}=${options[k]}`)
-    .join("&");
-  return opts ? `${productId}?${opts}` : productId;
-}
-
+/**
+ * Shape check for items read back from localStorage. This only drops corrupted
+ * or obviously edited entries so the UI stays sane; it is not a security
+ * boundary. Prices are always recalculated on the server at checkout.
+ */
 function isCartItem(value: unknown): value is CartItem {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
@@ -26,13 +27,24 @@ function isCartItem(value: unknown): value is CartItem {
     typeof v.key === "string" &&
     typeof v.productId === "string" &&
     typeof v.slug === "string" &&
+    /^[a-z0-9-]+$/.test(v.slug) &&
     typeof v.title === "string" &&
+    (v.brand === null || typeof v.brand === "string") &&
     typeof v.image === "string" &&
+    v.image.startsWith(IMAGE_ORIGIN) &&
     typeof v.unitPrice === "number" &&
+    Number.isFinite(v.unitPrice) &&
+    v.unitPrice > 0 &&
     typeof v.quantity === "number" &&
+    Number.isInteger(v.quantity) &&
+    v.quantity > 0 &&
     typeof v.maxQuantity === "number" &&
+    Number.isInteger(v.maxQuantity) &&
+    v.maxQuantity >= 0 &&
     typeof v.options === "object" &&
-    v.options !== null
+    v.options !== null &&
+    !Array.isArray(v.options) &&
+    Object.values(v.options).every((o) => typeof o === "string")
   );
 }
 
