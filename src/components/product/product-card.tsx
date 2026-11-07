@@ -30,7 +30,7 @@ export function ProductCard({ product, priority = false, className }: ProductCar
       <div className="flex flex-1 flex-col pt-3">
         <p className="min-h-4 text-xs font-medium text-muted-foreground">{product.brand}</p>
         <h3 className="mt-0.5 font-sans text-[0.95rem] leading-snug font-medium tracking-normal">
-          <Link href={href} className="line-clamp-2 rounded-sm hover:underline">
+          <Link href={href} className="line-clamp-2 rounded-sm py-0.5 hover:underline">
             {product.title}
           </Link>
         </h3>

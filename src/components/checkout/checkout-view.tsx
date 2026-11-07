@@ -249,7 +249,7 @@ function CheckoutForm({ items, onPlaced }: { items: CartItem[]; onPlaced: (o: Pl
             shippingLabel={method === "express" ? "Express shipping" : "Standard shipping"}
           />
           <ItemList items={items} />
-          <Link href="/cart" className="block text-center text-sm font-medium text-spruce hover:underline">
+          <Link href="/cart" className="block py-2 text-center text-sm font-medium text-spruce hover:underline">
             Edit cart
           </Link>
         </div>

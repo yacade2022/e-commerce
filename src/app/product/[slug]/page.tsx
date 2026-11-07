@@ -72,7 +72,7 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
           {product.brand && (
             <Link
               href={`/search?brand=${encodeURIComponent(product.brand)}`}
-              className="text-sm font-semibold text-spruce hover:underline"
+              className="inline-flex min-h-6 items-center text-sm font-semibold text-spruce hover:underline"
             >
               {product.brand}
             </Link>

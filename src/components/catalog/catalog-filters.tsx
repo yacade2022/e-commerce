@@ -146,7 +146,7 @@ export function CatalogFilters({ query, facets, idPrefix }: CatalogFiltersProps)
             <button
               type="button"
               onClick={() => setShowAllBrands((s) => !s)}
-              className="mt-3 text-sm font-medium text-spruce underline-offset-2 hover:underline"
+              className="mt-2 inline-flex min-h-8 items-center text-sm font-medium text-spruce underline-offset-2 hover:underline"
               aria-expanded={showAllBrands}
             >
               {showAllBrands ? "Show fewer brands" : `Show all ${facets.brands.length} brands`}

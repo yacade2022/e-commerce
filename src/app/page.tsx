@@ -215,7 +215,7 @@ function SectionHeading({
         )}
         {title}
       </h2>
-      <Link href={href} className="text-sm font-semibold text-spruce underline-offset-4 hover:underline">
+      <Link href={href} className="inline-flex min-h-8 items-center text-sm font-semibold text-spruce underline-offset-4 hover:underline">
         {linkLabel}
       </Link>
     </div>

@@ -48,7 +48,7 @@ export function ActiveFilters({ query }: { query: CatalogQuery }) {
       <Link
         href={catalogHref({ department: query.department, category: query.category, sort: query.sort })}
         scroll={false}
-        className="ml-1 text-sm font-medium text-spruce underline-offset-2 hover:underline"
+        className="ml-1 inline-flex min-h-8 items-center px-1 text-sm font-medium text-spruce underline-offset-2 hover:underline"
       >
         Clear all
       </Link>
