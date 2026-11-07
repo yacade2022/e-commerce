@@ -101,7 +101,7 @@ function CartLine({ item }: { item: CartItem }) {
             </p>
           )}
           <p className="tabular mt-1 text-sm text-muted-foreground">{formatPrice(item.unitPrice)} each</p>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
             <QuantityStepper
               size="sm"
               value={item.quantity}

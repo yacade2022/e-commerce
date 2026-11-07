@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { MenuIcon } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { MenuIcon, XIcon } from "lucide-react";
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { departments } from "@/data/taxonomy";
 import { LogoMark } from "./logo";
 
@@ -26,10 +26,17 @@ export function MobileNav() {
       >
         <MenuIcon className="size-6" aria-hidden="true" />
       </SheetTrigger>
-      <SheetContent side="left" className="w-[85vw] max-w-sm gap-0 overflow-y-auto p-0">
-        <SheetHeader className="flex-row items-center gap-2 bg-spruce px-4 py-4 text-white">
+      <SheetContent side="left" showCloseButton={false} className="w-[85vw] max-w-sm gap-0 overflow-y-auto p-0">
+        <SheetHeader className="flex-row items-center gap-2 bg-spruce py-2 pr-2 pl-4 text-white">
           <LogoMark className="size-7" />
           <SheetTitle className="font-display text-lg text-white">Browse Stockroom</SheetTitle>
+          {/* The default close button is dark; this one stays visible on the green header. */}
+          <SheetClose
+            className="ml-auto inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white"
+            aria-label="Close menu"
+          >
+            <XIcon className="size-5" aria-hidden="true" />
+          </SheetClose>
         </SheetHeader>
         <nav aria-label="Departments" className="px-2 py-3">
           <p className="px-3 pb-2 text-sm font-semibold text-muted-foreground">Shop by aisle</p>

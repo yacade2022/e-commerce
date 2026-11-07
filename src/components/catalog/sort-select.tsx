@@ -12,7 +12,8 @@ export function SortSelect({ query }: { query: CatalogQuery }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span id="sort-label" className="text-sm whitespace-nowrap text-muted-foreground">
+      {/* Visually hidden on the narrowest phones so Filters + Sort fit in one row; still labels the select. */}
+      <span id="sort-label" className="text-sm whitespace-nowrap text-muted-foreground max-[359px]:sr-only">
         Sort by
       </span>
       <Select
