@@ -1,10 +1,12 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { headers } from "next/headers";
 import { site } from "@/data/site";
 import { cartItemKey } from "@/lib/cart-key";
 import { getProductById } from "@/lib/catalog";
 import { calculateTotals, unitPriceFor, type CartTotals, type ShippingMethod } from "@/lib/pricing";
+import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 import type { CartItem, Product, SelectedOptions } from "@/lib/types";
 
 /** What the client sends: identifiers and quantities only, never prices. */
@@ -27,11 +29,25 @@ export type PlaceOrderResult =
 
 const MAX_LINES = 50;
 
+/** 10 order attempts per client IP per 10 minutes, counting rejected ones. */
+const orderLimiter = createRateLimiter({ limit: 10, windowMs: 10 * 60 * 1000 });
+
 /**
  * Prices a demo order on the server from the catalog. Server Functions can be
  * called with a direct POST, so every argument is treated as untrusted input.
  */
 export async function placeOrder(lines: unknown, method: unknown): Promise<PlaceOrderResult> {
+  // Checked first so probing with invalid input also uses up attempts.
+  const { limited, retryAfter } = orderLimiter.check(clientIp(await headers()));
+  if (limited) {
+    const minutes = Math.ceil(retryAfter / 60);
+    return {
+      ok: false,
+      error: `Too many order attempts. Try again in ${minutes === 1 ? "1 minute" : `${minutes} minutes`}.`,
+      problemKeys: [],
+    };
+  }
+
   if (method !== "standard" && method !== "express") {
     return { ok: false, error: "Choose a delivery method.", problemKeys: [] };
   }
