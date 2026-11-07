@@ -54,30 +54,11 @@ export function createMemoryRateLimiter({ limit, windowMs }: { limit: number; wi
   };
 }
 
-/* ---------- Order limiter: Upstash Redis, with in-memory fallback ---------- */
-
-const ORDER_LIMIT = 10;
-const ORDER_WINDOW = "10 m";
-const ORDER_WINDOW_MS = 10 * 60 * 1000;
-
-const memoryOrderLimiter = createMemoryRateLimiter({ limit: ORDER_LIMIT, windowMs: ORDER_WINDOW_MS });
+/* ---------- Shared limiters: Upstash Redis, with in-memory fallback ---------- */
 
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-// Created at module scope so Upstash's ephemeral cache can skip Redis calls for
-// clients that are already blocked while this instance stays warm.
-const upstashOrderLimiter =
-  url && token
-    ? new Ratelimit({
-        redis: new Redis({ url, token }),
-        limiter: Ratelimit.slidingWindow(ORDER_LIMIT, ORDER_WINDOW),
-        prefix: "stockroom:place-order",
-        // Give up on Redis after 2s; we then fall back to the in-memory limiter below.
-        timeout: 2000,
-        analytics: false,
-      })
-    : null;
+const redis = url && token ? new Redis({ url, token }) : null;
 
 let warnedMissingConfig = false;
 let lastErrorLog = 0;
@@ -91,38 +72,68 @@ function logUpstashError(error: unknown) {
     return;
   }
   const extra = suppressedErrors ? ` (${suppressedErrors} similar errors in the last minute)` : "";
-  console.error(`[rate-limit] Upstash request failed; using the in-memory limiter${extra}.`, error);
+  console.error(`[rate-limit] Upstash request failed; using the in-memory limiters${extra}.`, error);
   lastErrorLog = now;
   suppressedErrors = 0;
 }
 
-/**
- * Limits order attempts per key (client IP) across all server instances when
- * UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set. Without them, or
- * if Upstash times out or errors, it falls back to the per-instance limiter so
- * there is always some limit in place.
- */
-export async function checkOrderRateLimit(key: string): Promise<RateLimitResult> {
-  if (!upstashOrderLimiter) {
-    if (process.env.NODE_ENV === "production" && !warnedMissingConfig) {
-      warnedMissingConfig = true;
-      console.warn("[rate-limit] Upstash is not configured; using the per-instance in-memory limiter.");
-    }
-    return memoryOrderLimiter.check(key);
-  }
+type Minutes = number;
 
-  try {
-    const { success, reset, reason } = await upstashOrderLimiter.limit(key);
-    // On timeout Upstash lets the request through; apply the local limit instead.
-    if (reason === "timeout") return memoryOrderLimiter.check(key);
-    return {
-      limited: !success,
-      retryAfter: success ? 0 : Math.max(1, Math.ceil((reset - Date.now()) / 1000)),
-    };
-  } catch (error) {
-    logUpstashError(error);
-    return memoryOrderLimiter.check(key);
-  }
+/**
+ * Creates a named limit of `limit` requests per `minutes` per key (client IP).
+ * Counts are shared across all server instances when UPSTASH_REDIS_REST_URL and
+ * UPSTASH_REDIS_REST_TOKEN are set. Without them, or if Upstash times out or
+ * errors, it falls back to a per-instance limiter so some limit always applies.
+ *
+ * Call at module scope (not per request) so Upstash's ephemeral cache can skip
+ * Redis calls for clients that are already blocked while the instance is warm.
+ */
+function createSharedRateLimiter({ name, limit, minutes }: { name: string; limit: number; minutes: Minutes }) {
+  const memory = createMemoryRateLimiter({ limit, windowMs: minutes * 60 * 1000 });
+  const upstash = redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(limit, `${minutes} m`),
+        prefix: `stockroom:${name}`,
+        // Give up on Redis after 2s; we then fall back to the in-memory limiter.
+        timeout: 2000,
+        analytics: false,
+      })
+    : null;
+
+  return async function check(key: string): Promise<RateLimitResult> {
+    if (!upstash) {
+      if (process.env.NODE_ENV === "production" && !warnedMissingConfig) {
+        warnedMissingConfig = true;
+        console.warn("[rate-limit] Upstash is not configured; using per-instance in-memory limiters.");
+      }
+      return memory.check(key);
+    }
+    try {
+      const { success, reset, reason } = await upstash.limit(key);
+      // On timeout Upstash lets the request through; apply the local limit instead.
+      if (reason === "timeout") return memory.check(key);
+      return {
+        limited: !success,
+        retryAfter: success ? 0 : Math.max(1, Math.ceil((reset - Date.now()) / 1000)),
+      };
+    } catch (error) {
+      logUpstashError(error);
+      return memory.check(key);
+    }
+  };
+}
+
+/** Checkout: 10 order attempts per client IP per 10 minutes. */
+export const checkOrderRateLimit = createSharedRateLimiter({ name: "place-order", limit: 10, minutes: 10 });
+
+/** Contact form: 5 messages per client IP per hour. */
+export const checkContactRateLimit = createSharedRateLimiter({ name: "contact", limit: 5, minutes: 60 });
+
+/** "Try again in 3 minutes" style wording for a retry delay in seconds. */
+export function retryMessage(retryAfter: number): string {
+  const minutes = Math.ceil(retryAfter / 60);
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 }
 
 /* ---------- Client identification ---------- */

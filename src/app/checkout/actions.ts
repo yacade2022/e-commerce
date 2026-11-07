@@ -6,7 +6,7 @@ import { site } from "@/data/site";
 import { cartItemKey } from "@/lib/cart-key";
 import { getProductById } from "@/lib/catalog";
 import { calculateTotals, unitPriceFor, type CartTotals, type ShippingMethod } from "@/lib/pricing";
-import { checkOrderRateLimit, clientIp } from "@/lib/rate-limit";
+import { checkOrderRateLimit, clientIp, retryMessage } from "@/lib/rate-limit";
 import type { CartItem, Product, SelectedOptions } from "@/lib/types";
 
 /** What the client sends: identifiers and quantities only, never prices. */
@@ -38,12 +38,7 @@ export async function placeOrder(lines: unknown, method: unknown): Promise<Place
   // invalid input also uses up attempts. Shared across instances via Upstash.
   const { limited, retryAfter } = await checkOrderRateLimit(clientIp(await headers()));
   if (limited) {
-    const minutes = Math.ceil(retryAfter / 60);
-    return {
-      ok: false,
-      error: `Too many order attempts. Try again in ${minutes === 1 ? "1 minute" : `${minutes} minutes`}.`,
-      problemKeys: [],
-    };
+    return { ok: false, error: `Too many order attempts. Try again in ${retryMessage(retryAfter)}.`, problemKeys: [] };
   }
 
   if (method !== "standard" && method !== "express") {
