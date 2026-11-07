@@ -52,6 +52,12 @@ export function getCategory(slug: string): Category | undefined {
   return categoryBySlug.get(slug);
 }
 
+const brandNames = new Set(allProducts.map((p) => p.brand).filter((b): b is string => Boolean(b)));
+
+export function isKnownBrand(value: string): boolean {
+  return brandNames.has(value);
+}
+
 export function isDepartmentSlug(value: string): value is DepartmentSlug {
   return departmentBySlug.has(value as DepartmentSlug);
 }

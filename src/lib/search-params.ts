@@ -46,8 +46,10 @@ export function parseCatalogQuery(
   return {
     q: first(params.q)?.trim().slice(0, 100) || undefined,
     department: dept && isDepartment(dept) ? dept : undefined,
-    category: first(params.category) || undefined,
-    brands: all(params.brand),
+    // Category slugs are lowercase words joined by hyphens; anything else is ignored.
+    category: first(params.category)?.match(/^[a-z0-9-]{1,40}$/)?.[0],
+    // Bounded so hand-made URLs can't send thousands of values (the catalog has under 60 brands).
+    brands: all(params.brand).filter((b) => b.length <= 60).slice(0, 60),
     minPrice,
     maxPrice,
     inStock: first(params.stock) === "1",

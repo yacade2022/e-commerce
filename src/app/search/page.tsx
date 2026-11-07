@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { ProductGrid } from "@/components/product/product-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCategory, getDepartment, isDepartmentSlug, searchProducts } from "@/lib/catalog";
+import { getCategory, getDepartment, isDepartmentSlug, isKnownBrand, searchProducts } from "@/lib/catalog";
 import { catalogHref, parseCatalogQuery, type RawSearchParams } from "@/lib/search-params";
 import type { CatalogQuery } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,13 @@ function headingFor(query: CatalogQuery): { title: string; context?: string } {
 }
 
 async function Catalog({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  const query = parseCatalogQuery(await searchParams, isDepartmentSlug);
+  const parsed = parseCatalogQuery(await searchParams, isDepartmentSlug);
+  // Drop categories and brands that aren't in the catalog so they aren't echoed into every filter link.
+  const query: CatalogQuery = {
+    ...parsed,
+    category: parsed.category && getCategory(parsed.category) ? parsed.category : undefined,
+    brands: parsed.brands?.filter(isKnownBrand),
+  };
   const result = await searchProducts(query);
   const { title, context } = headingFor(query);
   const activeCount =
